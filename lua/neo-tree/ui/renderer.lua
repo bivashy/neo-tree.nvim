@@ -1643,6 +1643,25 @@ local function group_empty_dirs(node)
   end
 end
 
+---Clone tree node and its subtree.
+---@param state neotree.State
+---@param node NuiTree.Node
+local function clone_loaded_node(state, node)
+  local data = {}
+  for k, v in pairs(node) do
+    if type(k) == "string" and not k:match("^_") then
+      data[k] = v
+    end
+  end
+  local children = {}
+  for _, child in ipairs(state.tree:get_nodes(node:get_id())) do
+    children[#children + 1] = clone_loaded_node(state, child)
+  end
+  local new_node = NuiTree.Node(data, children)
+  new_node._is_expanded = node:is_expanded() or false
+  return new_node
+end
+
 ---Shows the given items as a tree.
 ---@param sourceItems table? The list of items to transform.
 ---@param state neotree.State The current state of the plugin.
@@ -1703,13 +1722,14 @@ M.show_nodes = function(sourceItems, state, parentId, callback)
           local item = sourceItems[1]
           parentId = parent:get_parent_id()
           local siblings = state.tree:get_nodes(parentId)
-          for i, node in pairs(siblings) do
+          for i, node in ipairs(siblings) do
             if node.id == parent.id then
               item.name = parent.name .. utils.path_separator .. item.name
               item.level = level - 1
               item.loaded = utils.truthy(item.children)
               siblings[i] = NuiTree.Node(item, item.children)
-              break
+            elseif node:has_children() then
+              siblings[i] = clone_loaded_node(state, node)
             end
           end
           sourceItems = nil -- this is a signal to skip the rest of the processing
